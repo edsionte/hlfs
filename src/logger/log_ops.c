@@ -246,7 +246,7 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 
 	guint32 db_data_len ;
 	guint32 ib_data_len ;
-	
+
 	///db_data_len = (db_end-db_start + 1) * BLOCKSIZE;
 	///ib_data_len = ib_amount(db_start, db_end) * BLOCKSIZE;
 	uint32_t compressed_len = *(uint32_t *)db_buff;
@@ -276,7 +276,7 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 		//cur_block_ptr表示数据块中的当前数据块块指针
 		///char * cur_block_ptr = (char *) (db_buff + i * BLOCKSIZE);  
 		uint32_t lzo_block_len = *(uint32_t *)(db_buff);
-		cur_compressed_len += sizeof(uint32_t);
+		//cur_compressed_len += sizeof(uint32_t);
 		char *cur_block_ptr = (char *)(db_buff + cur_compressed_len);
 
 		//db_offset表示在整个log中当前的数据块的偏移
@@ -295,7 +295,7 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 			set_offset(&ctrl->inode.blocks[_idx],ctrl->last_offset + db_offset);
 #endif
 			///	memcpy(cur_log_buff_ptr,cur_block_ptr,BLOCKSIZE);
-			memcpy(cur_log_buff_ptr, cur_block_ptr, lzo_block_len);
+			memcpy(cur_log_buff_ptr, cur_block_ptr, sizeof(uint32_t) + lzo_block_len);
 		}else if(is_db_in_level2_index_range(db_cur_no)){
 			//HLOG_DEBUG("is level2 -- db_cur_no:%d db_offset:%d",db_cur_no,db_offset);
 			if(TRUE == ib1_need_load && ctrl->inode.iblock == 0){
@@ -306,6 +306,7 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 				//read_layerX_iblock检查是否在缓存中有该索引块
 				if(0>read_layer1_iblock(ctrl,db_cur_no,ib1)){ 
 					//如果上述缓存中没有则根据间接索引块地址读取索引块
+					//从指定地址读取整个块后，解压到ib1
 					if (0 != read_block_fast(ctrl,ctrl->inode.iblock,ib1)){
 						HLOG_ERROR("read block error!");
 						g_assert(0);
@@ -320,15 +321,27 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 			set_segno ((ib1+_idx),ctrl->last_segno);
 			set_offset ((ib1+_idx),ctrl->last_offset + db_offset);
 			//HLOG_DEBUG("-- cur_dbno:%d,idx:%d,storage address:%llu",db_cur_no,_idx,*(ib1+_idx));
-			memcpy(cur_log_buff_ptr,cur_block_ptr,BLOCKSIZE);
+			///memcpy(cur_log_buff_ptr,cur_block_ptr,BLOCKSIZE);
+			memcpy(cur_log_buff_ptr, cur_block_ptr, sizeof(uint32_t) + lzo_block_len);
+			
+			//如果数据块拷贝完毕，则将索引块拷贝到数据块之后
 			if( (db_cur_no - 12 + 1) % IB_ENTRY_NUM == 0 || db_cur_no == db_end ){
 				HLOG_DEBUG("set iblock - segno:%u ???",ctrl->last_segno);
 #if 0
 				set_segno(&ctrl->inode.iblock,ctrl->last_segno);
 				set_offset(&ctrl->inode.iblock,ctrl->last_offset + ib_offset);
 #endif
-				memcpy((char*)log_buff + ib_offset,(char*)ib1,BLOCKSIZE);      
-				ib_offset +=BLOCKSIZE;
+				//将ib1压缩
+				char *tmp_ib1 = g_malloc0(BLOCKSIZE);
+				uint32_t outlen = 0;
+
+				if (compress_data(ib1, BLOCKSIZE, tmp_ib1, outlen) != 0) {
+					return -1;
+				}
+				//memcpy((char*)log_buff + ib_offset,(char*)ib1,BLOCKSIZE);      
+				memcpy((char *)log_buff + ib_offset, (char *)tmp_ib1, outlen);      
+				//ib_offset +=BLOCKSIZE;
+				ib_offset += outlen;
 				ib1_need_load=TRUE;
 				//dump_iblock(ib1);
 				memset(ib1,0,sizeof(BLOCKSIZE));

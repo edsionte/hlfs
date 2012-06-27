@@ -171,8 +171,9 @@ int hlfs_write(struct hlfs_ctrl *ctrl, char *write_buf, uint32_t write_len, uint
 	char *outdata = g_malloc0(BLOCKSIZE);
 	uint32_t compressed_len = 0;
 
-	//为所有压缩数据块长度和索引块长度预留空间
+	///为所有压缩数据块长度和索引块长度预留空间
 	compressed_len += sizeof(uint32_t) + sizeof(uint32_t);
+	
 	for (cur_dbno = db_start; cur_dbno <= db_end; cur_dbno++) {
 		if (compress_data((datablocks + i * BLOCKSIZE), inlen, outdata, outlen) != 0) {
 
