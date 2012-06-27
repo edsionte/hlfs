@@ -243,13 +243,12 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 	guint32  db_offset = 0;
 
 	uint32_t IB_ENTRY_NUM = BLOCKSIZE/sizeof(uint64_t);
-	
+
 	guint32 db_data_len ;
 	guint32 ib_data_len ;
-	/*
-	db_data_len = (db_end-db_start + 1) * BLOCKSIZE;
-	ib_data_len = ib_amount(db_start, db_end) * BLOCKSIZE;
-	*/
+	
+	///db_data_len = (db_end-db_start + 1) * BLOCKSIZE;
+	///ib_data_len = ib_amount(db_start, db_end) * BLOCKSIZE;
 	uint32_t compressed_len = *(uint32_t *)db_buff;
 	ib_data_len = *(uint32_t *)(db_buff + sizeof(uint32_t));
 	db_data_len = compressed_len - ib_data_len;
@@ -258,13 +257,13 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 	char* log_buff = (char*)g_malloc0(db_data_len + ib_data_len + 
 			sizeof(struct inode) + sizeof(struct inode_map_entry) + 
 			sizeof(struct log_header));
-	
+
 	if (!log_buff) {
 		HLOG_ERROR("allocate error!");
 		g_assert(0);
 		return -1;
 	}
-	
+
 	//计算索引块的起始偏移
 	guint32 ib_offset = db_data_len + LOG_HEADER_LENGTH;
 	guint32 db_cur_no = 0;
@@ -275,13 +274,13 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 	//HLOG_DEBUG(" db_data_len:%d ib_data_len:%d BLOCKSIZE:%d",db_data_len,ib_data_len,BLOCKSIZE);
 	for(db_cur_no = db_start,i=0; db_cur_no <= db_end; db_cur_no++,i++){
 		//cur_block_ptr表示数据块中的当前数据块块指针
-		//char * cur_block_ptr = (char *) (db_buff + i * BLOCKSIZE);  
+		///char * cur_block_ptr = (char *) (db_buff + i * BLOCKSIZE);  
 		uint32_t lzo_block_len = *(uint32_t *)(db_buff);
 		cur_compressed_len += sizeof(uint32_t);
 		char *cur_block_ptr = (char *)(db_buff + cur_compressed_len);
 
 		//db_offset表示在整个log中当前的数据块的偏移
-		//db_offset = LOG_HEADER_LENGTH + i*BLOCKSIZE;
+		///db_offset = LOG_HEADER_LENGTH + i*BLOCKSIZE;
 		db_offset = LOG_HEADER_LENGTH + cur_compressed_len;
 		char * cur_log_buff_ptr = log_buff + db_offset;
 
@@ -295,7 +294,7 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 			set_segno (&ctrl->inode.blocks[_idx],ctrl->last_segno);
 			set_offset(&ctrl->inode.blocks[_idx],ctrl->last_offset + db_offset);
 #endif
-		//	memcpy(cur_log_buff_ptr,cur_block_ptr,BLOCKSIZE);
+			///	memcpy(cur_log_buff_ptr,cur_block_ptr,BLOCKSIZE);
 			memcpy(cur_log_buff_ptr, cur_block_ptr, lzo_block_len);
 		}else if(is_db_in_level2_index_range(db_cur_no)){
 			//HLOG_DEBUG("is level2 -- db_cur_no:%d db_offset:%d",db_cur_no,db_offset);
@@ -304,7 +303,9 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 				memset(ib1,0,BLOCKSIZE);
 				ib1_need_load = FALSE;
 			}else if( TRUE == ib1_need_load && ctrl->inode.iblock != 0){
-				if(0>read_layer1_iblock(ctrl,db_cur_no,ib1)){ 	
+				//read_layerX_iblock检查是否在缓存中有该索引块
+				if(0>read_layer1_iblock(ctrl,db_cur_no,ib1)){ 
+					//如果上述缓存中没有则根据间接索引块地址读取索引块
 					if (0 != read_block_fast(ctrl,ctrl->inode.iblock,ib1)){
 						HLOG_ERROR("read block error!");
 						g_assert(0);

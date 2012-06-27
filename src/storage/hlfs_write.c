@@ -163,7 +163,6 @@ int hlfs_write(struct hlfs_ctrl *ctrl, char *write_buf, uint32_t write_len, uint
 	 *compressed_len | lzo_block_len | compressed block | lzo_block_len | compress block | ...
 	 *compressed_len为压缩后数据的总长度
 	 */
-
 	uint32_t cur_dbno;
 	int i = 0;
 	uint32_t inlen = BLOCKSIZE;
