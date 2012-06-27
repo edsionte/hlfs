@@ -22,6 +22,7 @@
 #include "icache.h"
 #include <errno.h>
 #include "clone.h"
+#include "compress.h"
 
 int prev_open_rsegfile(struct hlfs_ctrl *ctrl,uint32_t segno){
 	//HLOG_DEBUG("enter func %s", __func__);
@@ -163,20 +164,31 @@ int read_block_fast(struct hlfs_ctrl *ctrl,uint64_t storage_address,char* block)
 				return -1;
 			}
 		}
-		
+
 		//先读压缩数据块的长度
-		uint32_t lzo_block_len;
+		uint32_t lzo_block_len = 0;
 		storage->bs_file_pread(storage, ctrl->last_rsegfile_handler,
 				&lzo_block_len, sizeof(uint32_t), offset);
-		//再度压缩数据块
+		//再读压缩数据块
+		char *tmp_block = g_malloc0(block_size);
+		uint32_t outlen = 0;
 		write_size = storage->bs_file_pread(storage, ctrl->last_rsegfile_handler, 
-				block, lzo_block_len, offset + sizeof(uint32_t));
-		if(write_size!=block_size){
+				tmp_block, lzo_block_len, offset + sizeof(uint32_t));
+
+		///if(write_size!=block_size){
+		if(write_size != lzo_block_len){
 			HLOG_WARN("can not read block from seg:%u#%u :ret :%d",segno,offset,write_size);
 			g_usleep(1000);
 			retry_time--;
 			ret = -1;
 		}else{
+			if (decompress_data(tmp_block, lzo_block_len, block, outlen) != 0) {
+				return -1;
+			}
+			if (outlen != block_size) {
+				printf("decompress is not complete.\n");
+				return -1;
+			}
 			HLOG_DEBUG("read block from seg:%u#%u size:%d",segno,offset,write_size);
 			ret = 0;
 		}

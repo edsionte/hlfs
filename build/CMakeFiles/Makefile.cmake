@@ -10,7 +10,7 @@ SET(CMAKE_MAKEFILE_DEPENDS
   "CMakeFiles/CMakeCCompiler.cmake"
   "CMakeFiles/CMakeCXXCompiler.cmake"
   "CMakeFiles/CMakeSystem.cmake"
-  "/home/edsionte/hlfs/test/CMakeLists.txt"
+  "/home/edsionte/hlfs/src/CMakeLists.txt"
   "/usr/share/cmake-2.8/Modules/CMakeCCompiler.cmake.in"
   "/usr/share/cmake-2.8/Modules/CMakeCCompilerABI.c"
   "/usr/share/cmake-2.8/Modules/CMakeCInformation.cmake"
@@ -55,8 +55,15 @@ SET(CMAKE_MAKEFILE_PRODUCTS
 
 # Dependency information for all targets:
 SET(CMAKE_DEPEND_INFO_FILES
-  "CMakeFiles/test_base.dir/DependInfo.cmake"
-  "CMakeFiles/test_base_with_cache.dir/DependInfo.cmake"
-  "CMakeFiles/test_base_with_icache.dir/DependInfo.cmake"
-  "CMakeFiles/test_clean_task.dir/DependInfo.cmake"
+  "CMakeFiles/all.dir/DependInfo.cmake"
+  "CMakeFiles/clone.hlfs.dir/DependInfo.cmake"
+  "CMakeFiles/hlfs.dir/DependInfo.cmake"
+  "CMakeFiles/libhlfs.dir/DependInfo.cmake"
+  "CMakeFiles/mkfs.hlfs.dir/DependInfo.cmake"
+  "CMakeFiles/nbd_ops.dir/DependInfo.cmake"
+  "CMakeFiles/segcalc.hlfs.dir/DependInfo.cmake"
+  "CMakeFiles/segclean.hlfs.dir/DependInfo.cmake"
+  "CMakeFiles/snapshot.hlfs.dir/DependInfo.cmake"
+  "CMakeFiles/tapdisk_ops.dir/DependInfo.cmake"
+  "CMakeFiles/tools.dir/DependInfo.cmake"
   )

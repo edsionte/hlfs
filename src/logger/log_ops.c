@@ -282,7 +282,7 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 		//db_offset表示在整个log中当前的数据块的偏移
 		///db_offset = LOG_HEADER_LENGTH + i*BLOCKSIZE;
 		db_offset = LOG_HEADER_LENGTH + cur_compressed_len;
-		char * cur_log_buff_ptr = log_buff + db_offset;
+		char *cur_log_buff_ptr = log_buff + db_offset;
 
 		//HLOG_DEBUG(" db_cur_no:%d db_offset:%d",db_cur_no,db_offset);
 		if(is_db_in_level1_index_range(db_cur_no)){
@@ -338,6 +338,9 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 				if (compress_data(ib1, BLOCKSIZE, tmp_ib1, outlen) != 0) {
 					return -1;
 				}
+				
+				memcpy((char *)log_buff + ib_offset, &outlen, sizeof(uint32_t));
+				ib_offset += sizeof(uint32_t);
 				//memcpy((char*)log_buff + ib_offset,(char*)ib1,BLOCKSIZE);      
 				memcpy((char *)log_buff + ib_offset, (char *)tmp_ib1, outlen);      
 				//ib_offset +=BLOCKSIZE;
@@ -366,6 +369,8 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 			}
 
 			//dump_iblock(ib1);
+                        //数据块号是顺序编址的，因此减去前两级所占用的号
+			//ib1指向一级间接索引块，而_idx是偏移，*(ib1+_idx)保存二级间接索引块地址
 			int _idx   = (db_cur_no - 12 - IB_ENTRY_NUM) / IB_ENTRY_NUM;
 			//HLOG_DEBUG("cur_dbno:%u,idx:%u,*(ib1+_idx):%llu",db_cur_no,_idx,*(ib1+_idx));
 			//uint64_t *_ib2 = NULL; 
@@ -387,11 +392,15 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 
 
 			//dump_iblock(ib2);
+			//ib2指向二级间接索引块，_idx2为偏移，*(ib2+_idx2)保存最终数据块地址
 			int _idx2  = (db_cur_no - 12 - IB_ENTRY_NUM)%IB_ENTRY_NUM;
 
+			//向*(ib2+_idx2)中设置段号和偏移量
 			set_segno ((ib2+_idx2),ctrl->last_segno);
 			set_offset((ib2+_idx2),ctrl->last_offset + db_offset);
-			memcpy(cur_log_buff_ptr,cur_block_ptr,BLOCKSIZE);
+			///memcpy(cur_log_buff_ptr,cur_block_ptr,BLOCKSIZE);
+			memcpy(cur_log_buff_ptr, cur_block_ptr, sizeof(uint32_t) + lzo_block_len);
+			
 			//HLOG_DEBUG("cur_dbno:%u,_idx2:%u,*(ib2+_idx2):%llu",db_cur_no,_idx2,*(ib2+_idx2));
 
 
@@ -400,11 +409,23 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 				set_segno ((ib1+_idx),ctrl->last_segno);
 				set_offset((ib1+_idx),ctrl->last_offset + ib_offset);
 				//HLOG_DEBUG("save new ib2:%llu,iboffset:%d",*(ib1+_idx),ib_offset);
-				memcpy((char*)log_buff + ib_offset,(char*)ib2,BLOCKSIZE);
+				
+				//将ib2压缩
+				char *tmp_ib2 = g_malloc0(BLOCKSIZE);
+				uint32_t outlen = 0;
+
+				if (compress_data(ib2, BLOCKSIZE, tmp_ib2, outlen) != 0) {
+					return -1;
+				}
+				memcpy((char *)log_buff + ib_offset, &outlen, sizeof(uint32_t));
+				ib_offset += sizeof(uint32_t);
+				///memcpy((char*)log_buff + ib_offset,(char*)ib2,BLOCKSIZE);
+				memcpy((char *)log_buff + ib_offset, (char *)tmp_ib2, outlen);
 				//HLOG_DEBUG("ib2 address:%p",log_buff+ib_offset);
 				ib2_need_load=TRUE;
 				memset(ib2,0,sizeof(BLOCKSIZE));
-				ib_offset +=BLOCKSIZE;
+				//ib_offset +=BLOCKSIZE;
+				ib_offset += outlen;
 			}
 
 			if((db_cur_no - 12 -IB_ENTRY_NUM + 1) % (IB_ENTRY_NUM*IB_ENTRY_NUM) == 0 || db_cur_no == db_end){
@@ -413,11 +434,23 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 				set_segno (&ctrl->inode.doubly_iblock,ctrl->last_segno);
 				set_offset(&ctrl->inode.doubly_iblock,ctrl->last_offset + ib_offset);
 #endif
-				memcpy((char*)log_buff + ib_offset,(char*)ib1,BLOCKSIZE);
+
+				//将ib1压缩
+				char *tmp_ib1 = g_malloc0(BLOCKSIZE);
+				uint32_t outlen = 0;
+
+				if (compress_data(ib1, BLOCKSIZE, tmp_ib1, outlen) != 0) {
+					return -1;
+				}
+				memcpy((char *)log_buff + ib_offset, &outlen, sizeof(uint32_t));
+				ib_offset += sizeof(uint32_t);
+				///memcpy((char *)log_buff + ib_offset,(char*)ib1,BLOCKSIZE);
+				memcpy((char *)log_buff + ib_offset, (char *)tmp_ib1, outlen);
 				//HLOG_DEBUG("ib1 address:%p",log_buff+ib_offset);
 				ib1_need_load=TRUE;
 				memset(ib1,0,sizeof(BLOCKSIZE));
-				ib_offset +=BLOCKSIZE;
+				///ib_offset += BLOCKSIZE;
+				ib_offset += outlen;
 			}
 
 		}else if(is_db_in_level4_index_range(db_cur_no)){
@@ -469,12 +502,25 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 			int _idx3  = (db_cur_no -12 -IB_ENTRY_NUM - IB_ENTRY_NUM*IB_ENTRY_NUM) % IB_ENTRY_NUM; 
 			set_segno ((ib3+_idx3),ctrl->last_segno);
 			set_offset((ib3+_idx3),ctrl->last_offset + db_offset);
-			memcpy(cur_log_buff_ptr,cur_block_ptr,BLOCKSIZE);
+			///memcpy(cur_log_buff_ptr,cur_block_ptr,BLOCKSIZE);
+			memcpy(cur_log_buff_ptr, cur_block_ptr, sizeof(uint32_t) + lzo_block_len);
+
 			if((db_cur_no-12-IB_ENTRY_NUM-IB_ENTRY_NUM*IB_ENTRY_NUM + 1) % IB_ENTRY_NUM == 0 || db_cur_no == db_end){
 				set_segno ((ib2+_idx2),ctrl->last_segno);
 				set_offset ((ib2+_idx2),ctrl->last_offset + ib_offset);
-				memcpy((char*)log_buff + ib_offset,(char*)ib3,BLOCKSIZE);
-				ib_offset +=BLOCKSIZE;
+				
+				//压缩ib3
+				char *tmp_ib3 = g_malloc0(BLOCKSIZE);
+				uint32_t outlen = 0;
+				if (compress_data(ib3, BLOCKSIZE, tmp_ib3, outlen) != 0) {
+					return -1;
+				}
+				memcpy((char *)log_buff + ib_offset, &outlen, sizeof(uint32_t));
+				ib_offset += sizeof(uint32_t);
+				///memcpy((char*)log_buff + ib_offset,(char*)ib3,BLOCKSIZE);
+				memcpy((char *)log_buff + ib_offset,(char *)tmp_ib3, outlen);
+				///ib_offset +=BLOCKSIZE;
+				ib_offset += outlen;
 				ib3_need_load= TRUE;
 				memset(ib3,0,sizeof(BLOCKSIZE));
 			}
@@ -482,8 +528,19 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 			if((db_cur_no-12-IB_ENTRY_NUM-IB_ENTRY_NUM*IB_ENTRY_NUM + 1) % (IB_ENTRY_NUM * IB_ENTRY_NUM)  == 0 || db_cur_no == db_end){
 				set_segno ((ib1+_idx),ctrl->last_segno);
 				set_offset ((ib1+_idx),ctrl->last_offset + ib_offset);
-				memcpy((char*)log_buff + ib_offset,(char*)ib2,BLOCKSIZE);
-				ib_offset +=BLOCKSIZE;
+			
+				//压缩ib2
+				char *tmp_ib2 = g_malloc0(BLOCKSIZE);
+				uint32_t outlen = 0;
+				if (compress_data(ib2, BLOCKSIZE, tmp_ib2, outlen) != 0) {
+					return -1;
+				}
+				memcpy((char *)log_buff + ib_offset, &outlen, sizeof(uint32_t));
+				ib_offset += sizeof(uint32_t);
+				///memcpy((char*)log_buff + ib_offset,(char*)ib2,BLOCKSIZE);
+				memcpy((char *)log_buff + ib_offset, (char *)tmp_ib2, outlen);
+				//ib_offset +=BLOCKSIZE;
+				ib_offset += outlen;
 				ib2_need_load = TRUE;
 				memset(ib2,0,sizeof(BLOCKSIZE));
 			}
@@ -493,8 +550,18 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 				set_segno (&ctrl->inode.triply_iblock,ctrl->last_segno);
 				set_offset(&ctrl->inode.triply_iblock,ctrl->last_offset + ib_offset);
 #endif
-				memcpy((char*)log_buff + ib_offset,(char*)ib1,BLOCKSIZE);
-				ib_offset +=BLOCKSIZE;
+				//压缩ib1
+				char *tmp_ib1 = g_malloc0(BLOCKSIZE);
+				uint32_t outlen = 0;
+				if (compress_data(ib1, BLOCKSIZE, tmp_ib1, outlen) != 0) {
+					return -1;
+				}
+				memcpy((char *)log_buff + ib_offset, &outlen, sizeof(uint32_t));
+				ib_offset += sizeof(uint32_t);
+				///memcpy((char*)log_buff + ib_offset,(char*)ib1,BLOCKSIZE);
+				memcpy((char *)log_buff + ib_offset, (char *)tmp_ib1, outlen);
+				///ib_offset +=BLOCKSIZE;
+				ib_offset += outlen;
 				ib1_need_load = TRUE;
 				memset(ib1,0,sizeof(BLOCKSIZE));
 			}
@@ -504,7 +571,11 @@ int __append_log(struct hlfs_ctrl *ctrl,const char *db_buff,uint32_t db_start,ui
 			HLOG_ERROR("offset is out of limit size(8T)!!!");
 			return -1;   
 		}
+
+		//当前压缩数据的偏移
+		cur_compressed_len += sizeof(uint32_t) + lzo_block_len;
 	}
+
 __inode_create:;
 	       HLOG_DEBUG("to update inode ...");
 	       int offset = ib_offset;

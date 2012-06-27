@@ -155,7 +155,10 @@ CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 HLFS_BINARY_DIR:STATIC=/home/edsionte/hlfs/build
 
 //Value Computed by CMake
-HLFS_SOURCE_DIR:STATIC=/home/edsionte/hlfs/test
+HLFS_SOURCE_DIR:STATIC=/home/edsionte/hlfs/src
+
+//Dependencies for the target
+hlfs_LIB_DEPENDS:STATIC=general;glib-2.0;general;gthread-2.0;general;rt;general;hdfs;general;log4c;general;jvm;
 
 
 ########################
@@ -232,7 +235,7 @@ CMAKE_EXPORT_COMPILE_COMMANDS-ADVANCED:INTERNAL=1
 CMAKE_GENERATOR:INTERNAL=Unix Makefiles
 //Start directory with the top level CMakeLists.txt file for this
 // project
-CMAKE_HOME_DIRECTORY:INTERNAL=/home/edsionte/hlfs/test
+CMAKE_HOME_DIRECTORY:INTERNAL=/home/edsionte/hlfs/src
 //Install .so files without execute permission.
 CMAKE_INSTALL_SO_NO_EXE:INTERNAL=1
 //ADVANCED property for variable: CMAKE_LINKER

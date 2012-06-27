@@ -1,4 +1,4 @@
-# Install script for directory: /home/edsionte/hlfs/test
+# Install script for directory: /home/edsionte/hlfs/src
 
 # Set the install prefix
 IF(NOT DEFINED CMAKE_INSTALL_PREFIX)

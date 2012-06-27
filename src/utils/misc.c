@@ -113,13 +113,34 @@ int read_block(struct back_storage *storage ,uint64_t storage_address,uint32_t b
 	//    block = NULL;
 	//    goto out;
 	//}
+
+	//先读压缩数据块的长度
+	uint32_t lzo_block_len = 0;
+	storage->bs_file_pread(storage, file, &lzo_block_len, sizeof(uint32_t), offset);
+	//再读压缩数据块
+	char *tmp_block = g_malloc0(block_size);
+	uint32_t outlen = 0;
 	uint32_t read_size;
-	if(block_size != (read_size = storage->bs_file_pread(storage,file,block_buf,block_size,offset))){
+	read_size = storage->bs_file_pread(storage, file, tmp_block,
+			lzo_block_len, offset + sizeof(uint32_t));
+
+	if (decompress_data(tmp_block, lzo_block_len, block_buf, outlen) != 0) {
+		return -1;
+	}
+	if (outlen != block_size) {
 		HLOG_ERROR("bs_file_pread's size:%d is not equal to block_size:%d, at offset:%u",read_size,block_size,offset);
 		ret = -1;
 		goto out;
 	}
 
+	/*
+	   uint32_t read_size;
+	   if(block_size != (read_size = storage->bs_file_pread(storage,file,block_buf,block_size,offset))){
+	   HLOG_ERROR("bs_file_pread's size:%d is not equal to block_size:%d, at offset:%u",read_size,block_size,offset);
+	   ret = -1;
+	   goto out;
+	   }
+	 */
 out:
 	storage->bs_file_close(storage,file);
 	//HLOG_DEBUG("leave func %s", __func__);
